@@ -1,0 +1,53 @@
+# Optional: deploy the backend as AWS Lambda functions with the Serverless Framework.
+# Not needed for local development — Docker runs the same handlers inside one Fastify server.
+#
+#   npm run build -w apps/backend
+#   npx serverless deploy --stage dev
+#
+# Each function below is one group of Fastify routes from src/functions/*, wired up in src/lambda.ts.
+
+service: shared-todo-api
+frameworkVersion: '>=3'
+
+provider:
+  name: aws
+  runtime: nodejs22.x
+  region: ap-south-1
+  memorySize: 512
+  timeout: 10
+  environment:
+    NODE_ENV: production
+    DATABASE_URL: ${env:DATABASE_URL}
+    FIREBASE_PROJECT_ID: ${env:FIREBASE_PROJECT_ID}
+    CORS_ORIGIN: ${env:CORS_ORIGIN, '*'}
+  httpApi:
+    cors: true
+
+package:
+  patterns:
+    - '!src/**'
+    - '!test/**'
+    - 'dist/**'
+    - 'node_modules/**'
+
+functions:
+  health:
+    handler: dist/lambda.health
+    events:
+      - httpApi: { path: /health, method: GET }
+
+  auth:
+    handler: dist/lambda.auth
+    events:
+      - httpApi: { path: '/auth/{proxy+}', method: '*' }
+
+  users:
+    handler: dist/lambda.users
+    events:
+      - httpApi: { path: /users, method: GET }
+
+  tasks:
+    handler: dist/lambda.tasks
+    events:
+      - httpApi: { path: /tasks, method: '*' }
+      - httpApi: { path: '/tasks/{proxy+}', method: '*' }

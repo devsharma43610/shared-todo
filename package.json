@@ -1,0 +1,26 @@
+{
+  "name": "shared-todo",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Shared To-Do List \u2014 Fastify + Prisma + PostgreSQL backend, Vue 3 + Pinia + Vite frontend, Firebase Auth",
+  "workspaces": [
+    "apps/backend",
+    "apps/frontend"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev -w apps/backend",
+    "dev:frontend": "npm run dev -w apps/frontend",
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "typecheck": "npm run typecheck --workspaces",
+    "db:migrate": "npm run prisma:migrate -w apps/backend",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "^1.14.0"
+  }
+}

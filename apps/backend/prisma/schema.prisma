@@ -1,0 +1,63 @@
+// Prisma schema — source of truth for migrations.
+// A matching DBML file lives at db/schema.dbml.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum TaskStatus {
+  todo
+  in_progress
+  done
+
+  @@map("task_status")
+}
+
+model User {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  firebaseUid String   @unique @map("firebase_uid") @db.VarChar(128)
+  email       String   @unique @db.VarChar(255)
+  displayName String?  @map("display_name") @db.VarChar(100)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  ownedTasks  Task[]
+  sharedTasks TaskShare[]
+
+  @@map("users")
+}
+
+model Task {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title       String     @db.VarChar(200)
+  description String?
+  status      TaskStatus @default(todo)
+  dueDate     DateTime?  @map("due_date") @db.Timestamptz(6)
+  ownerId     String     @map("owner_id") @db.Uuid
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  owner  User        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  shares TaskShare[]
+
+  @@index([ownerId])
+  @@map("tasks")
+}
+
+model TaskShare {
+  taskId   String   @map("task_id") @db.Uuid
+  userId   String   @map("user_id") @db.Uuid
+  sharedAt DateTime @default(now()) @map("shared_at") @db.Timestamptz(6)
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, userId])
+  @@index([userId])
+  @@map("task_shares")
+}

@@ -1,0 +1,89 @@
+# Full local stack: PostgreSQL + Firebase Auth Emulator + backend API + frontend.
+#
+#   docker compose up --build
+#
+# App:            http://localhost:8080
+# API:            http://localhost:3000   (also proxied at http://localhost:8080/api)
+# Emulator UI:    http://localhost:4000   (see/manage test users)
+#
+# Every value has a default, so a .env file is optional (see .env.example).
+
+name: shared-todo
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-todo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-todo}
+      POSTGRES_DB: ${POSTGRES_DB:-shared_todo}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  firebase:
+    build: ./docker/firebase
+    restart: unless-stopped
+    environment:
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-demo-shared-todo}
+    ports:
+      - '9099:9099' # Auth Emulator (the browser talks to it directly)
+      - '4000:4000' # Emulator UI
+    volumes:
+      - firebase-data:/data
+    # Give the emulator time to export accounts on shutdown.
+    stop_grace_period: 20s
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://localhost:9099/').then(()=>process.exit(0)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-todo}:${POSTGRES_PASSWORD:-todo}@postgres:5432/${POSTGRES_DB:-shared_todo}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-demo-shared-todo}
+      FIREBASE_AUTH_EMULATOR_HOST: firebase:9099
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080,http://localhost:5173}
+    ports:
+      - '${BACKEND_PORT:-3000}:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      firebase:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+        VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY:-demo-api-key}
+        VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN:-demo-shared-todo.firebaseapp.com}
+        VITE_FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-demo-shared-todo}
+        VITE_FIREBASE_AUTH_EMULATOR_URL: ${VITE_FIREBASE_AUTH_EMULATOR_URL:-http://localhost:9099}
+    restart: unless-stopped
+    ports:
+      - '${FRONTEND_PORT:-8080}:80'
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+  firebase-data:

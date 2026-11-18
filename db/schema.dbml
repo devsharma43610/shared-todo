@@ -1,0 +1,59 @@
+// Shared To-Do List — database schema
+// Source of truth for migrations: apps/backend/prisma/schema.prisma
+// Paste this file into https://dbdiagram.io to view the ER diagram.
+
+Project shared_todo {
+  database_type: 'PostgreSQL'
+  Note: 'Users authenticate with Firebase; tasks are owned by one user and can be shared with others.'
+}
+
+Enum task_status {
+  todo
+  in_progress
+  done
+}
+
+Table users {
+  id uuid [pk, default: `gen_random_uuid()`]
+  firebase_uid varchar(128) [unique, not null, note: 'Firebase Auth UID (token "sub")']
+  email varchar(255) [unique, not null]
+  display_name varchar(100)
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null]
+}
+
+Table tasks {
+  id uuid [pk, default: `gen_random_uuid()`]
+  title varchar(200) [not null]
+  description text
+  status task_status [not null, default: 'todo']
+  due_date timestamptz
+  owner_id uuid [not null]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null]
+
+  indexes {
+    owner_id
+  }
+}
+
+Table task_shares {
+  task_id uuid [not null]
+  user_id uuid [not null, note: 'User the task is shared with']
+  shared_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (task_id, user_id) [pk]
+    user_id
+  }
+
+  Note: '''
+  Permissions: the owner can read, edit, delete and share a task.
+  Users in task_shares can read and edit it, but cannot delete or re-share it.
+  Rows are removed on cascade when the task or user is deleted.
+  '''
+}
+
+Ref: tasks.owner_id > users.id [delete: cascade]
+Ref: task_shares.task_id > tasks.id [delete: cascade]
+Ref: task_shares.user_id > users.id [delete: cascade]
